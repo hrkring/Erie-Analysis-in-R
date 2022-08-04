@@ -1,0 +1,157 @@
+# Erie: Relative Abundance Analysis
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir=normalizePath(".."))
+```
+
+## Setup and reading in data
+```{r}
+rm(list = ls())
+gc()
+
+library(tidyverse)
+library(lubridate)
+
+erie <- readRDS("clean_data/erie.rds")
+erie_meta <- readRDS("clean_data/erie_meta.rds")
+erie_tax <- readRDS("clean_data/erie_tax.rds")
+```
+
+## Filtering out samples with small read numbers
+```{r}
+erie_meta <- erie_meta %>%
+             filter(sequencingDepth >= 10000)
+
+erie_samples <- erie_meta %>%
+                pluck("SampleID")
+
+erie <- erie %>%
+        filter(SampleID %>% is.element(erie_samples))
+```
+
+## Lengthening the data with a pivot
+```{r}
+erie <- erie %>%
+        select(-c(label, numOtus)) %>%
+        pivot_longer(cols = starts_with("Otu"),
+                     names_to = "OTU",
+                     values_to = "Abundance")
+erie
+```
+
+## Simplifying the taxonomy table
+```{r}
+erie_tax_phylum <- erie_tax %>%
+            select(OTU, Phylum)
+```
+
+## Joining the erie and erie_tax tables so the OTUs are labeled (Phylum)
+```{r}
+erie <- erie %>%
+        left_join(erie_tax_phylum)
+erie
+```
+
+## Aggregating the data by SampleID and Phylum
+
+Group the data by SampleID and Phylum
+```{r}
+erie_phylum <- erie %>%
+               group_by(SampleID, Phylum)
+
+rm(erie)
+gc()
+```
+
+Aggregate Abundance as a sum
+```{r}
+erie_phylum <- erie_phylum %>%
+               summarize(Abundance = sum(Abundance))
+erie_phylum
+```
+
+## Computing relative abundances
+```{r}
+erie_phylum <- erie_phylum %>%
+               mutate(Rel_Abundance = Abundance / sum(Abundance, na.rm = TRUE))
+```
+
+## Filtering out uncommon phila
+How many phyla do we currently have?
+```{r}
+erie_phylum %>% ungroup() %>% count(Phylum)
+```
+
+Removing phyla where the relative abundance is 2% or less
+```{r}
+erie_phylum <- erie_phylum %>%
+               filter(Rel_Abundance > .02)
+```
+
+How many phyla do we have after filtering?
+```{r}
+erie_phylum %>% ungroup() %>% count(Phylum)
+```
+
+Saving the filtered dataset
+```{r}
+erie_phylum %>%
+ungroup() %>%
+saveRDS("clean_data/erie_phylum.rds")
+```
+
+## Joining sample data with the meta data
+```{r}
+erie_joined <- erie_phylum %>%
+               left_join(erie_meta)
+```
+
+## Creating the stacked bar plots
+
+Defining the set of colors to be used for the stacked bar plot
+```{r}
+phylum_colors <- c(
+  "#CBD588", "#5F7FC7", "orange","#DA5724", "#508578", "#CD9BCD",
+   "#AD6F3B", "#673770","#D14285", "#652926", "#C84248", 
+  "#8569D5", "#5E738F","#D1A33D", "#8A7C64", "#599861"
+)
+```
+
+We are making two plots. The first plot treats the date as a date format, which will highlight the length of time between sample collections. The second plot will treat the dates as characters, removing the irregular spacing to focus on differences between samples
+```{r}
+ggplot(erie_joined, aes(x = Date, y = Rel_Abundance, fill = Phylum)) + 
+  facet_grid(Station~.) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = phylum_colors) +
+  theme_bw() +
+  # Remove x axis title
+  theme(axis.title.x = element_blank()) + 
+  guides(fill = guide_legend(reverse = FALSE, keywidth = 1, keyheight = 1)) +
+  ylab("Relative Abundance (Phyla > 2%) \n") +
+  ggtitle("Phylum Composition of Lake Erie \n Bacterial Communities by Sampling Site") 
+```
+
+```{r}
+ggplot(erie_joined, aes(x = format(Date, "%m/%d"), y = Rel_Abundance, fill = Phylum)) + 
+  facet_grid(Station~.) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = phylum_colors) +
+  scale_x_discrete(
+    breaks = c("07/08", "08/04", "09/02", "10/06"),
+    labels = c("Jul", "Aug", "Sep", "Oct"),
+    drop = FALSE
+  ) +
+  theme_bw() +
+  # Remove x axis title
+  theme(axis.title.x = element_blank()) + 
+  guides(fill = guide_legend(reverse = FALSE, keywidth = 1, keyheight = 1)) +
+  ylab("Relative Abundance (Phyla > 2%) \n") +
+  ggtitle("Phylum Composition of Lake Erie \n Bacterial Communities by Sampling Site") 
+```
+
+## Saving the plots
+Saving the resulting plots as a pdf
+```{r}
+ggsave('outputs/Erie_Phylum_relativeAbundance_stackedBar.pdf')
+```

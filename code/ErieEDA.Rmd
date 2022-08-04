@@ -1,0 +1,59 @@
+# Erie: Exploratory Data Analysis
+
+
+## Initial setup and import
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir=normalizePath(".."))
+```
+
+Clearing the workspace
+```{r}
+rm(list = ls())
+gc()
+```
+
+Loading in the required packages for analysis
+```{r}
+library(tidyverse)
+library(vroom)
+library(lubridate)
+```
+
+Importing the data
+```{r}
+erie <- readRDS("clean_data/erie.rds")
+erie_tax <- readRDS("clean_data/erie_tax.rds")
+erie_meta <- readRDS("clean_data/erie_meta.rds")
+```
+
+## Creating a histogram of OTU read counts per sample
+
+Aggregate the data by summing the read counts of each OTU column per row
+```{r}
+erie_sums <- erie %>%
+             mutate(reads = rowSums(across(starts_with("Otu"))) %>% as.integer()) %>%
+             select(SampleID, reads)
+```
+
+Create the histogram of read counts
+```{r}
+ggplot(data = erie_sums, mapping = aes(x = reads)) +
+  geom_histogram(color = "black", fill = "coral", binwidth = 2500) +
+  ggtitle("Distribution of sample sequencing depth") +
+  xlab("Read counts") +
+  theme_bw() +
+  theme(axis.title.y = element_blank()) +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+Save the histogram as a pdf
+```{r}
+ggsave('outputs/Erie_readCounts_Histogram.pdf')
+```
+
+## Creating a table summarizing the min, mean, and max read counts
+```{r}
+erie_sums %>% summarize(min = min(reads), mean = mean(reads), max = max(reads))
+```
+

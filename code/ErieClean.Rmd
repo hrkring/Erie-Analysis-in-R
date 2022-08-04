@@ -1,0 +1,152 @@
+# Erie: Cleaning the Data for Analysis
+
+## Initial setup
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir=normalizePath(".."))
+```
+
+Clearing the workspace
+```{r}
+rm(list = ls())
+gc()
+```
+
+Loading in the required packages for analysis
+```{r}
+library(tidyverse)
+library(vroom)
+library(lubridate)
+```
+
+## Cleaning the meta file
+
+Loading in the Erie metadata
+```{r}
+col_types = "cccccccccddddddddddddddddddddddd"
+erie_meta <- read_csv("raw_data/habs_metadata_cleaned.csv", col_types = col_types)
+```
+
+Converting the Date_year column to the date data type
+```{r}
+erie_meta <- erie_meta %>%
+             mutate(Date = Date_year %>% mdy())
+```
+
+Counting the number of samples taken at each station each month
+```{r}
+erie_meta %>% count(Month, Station)
+```
+
+Extract the list of samples from the meta table
+```{r}
+erie_samples <- erie_meta %>% pluck("SampleID")
+```
+
+A summary of the meta data
+```{r}
+summary(erie_meta[,0:10])
+```
+
+## Cleaning the shared file
+
+Load in the shared file column headers and count the number of OTUs
+```{r}
+shared.path <- "raw_data/chabs.shared"
+v1 <- vroom_lines(shared.path, n_max = 1)
+
+countOtuStr <- str_count(v1, pattern = "Otu")
+countOtuStr
+```
+
+Defining the column types for the tibble
+```{r}
+col_types <- c("dc", rep("i", countOtuStr)) %>% str_flatten()
+```
+
+Load in the shared data file and drop all columns with NA
+```{r}
+erie <- vroom(shared.path, col_types = col_types) %>%
+        select(where(~!all(is.na(.x))))
+```
+
+Clean up variables
+```{r}
+rm(list = c("v1", "countOtuStr", "col_types"))
+```
+
+Rename the Group column to SampleID for consistency and filter out all samples that are not present in both the shared and meta files
+```{r}
+erie <- erie %>%
+        rename(SampleID = Group) %>%
+        filter(SampleID %>% is.element(erie_samples))
+```
+
+
+```{r}
+erie <- erie %>%
+        select(-(where(~is.numeric(.x) && sum(.x, na.rm = TRUE) <= 0) & starts_with("Otu")))
+```
+
+Extracting the list of OTUs from the shared table
+```{r}
+erie_otus <- names(erie %>% select(starts_with("Otu")))
+```
+
+A summary of the shared data
+```{r}
+summary(erie[,0:10])
+```
+
+## Cleaning the taxonomy file
+
+Loading the taxonomy file
+```{r}
+erie_tax <- read_tsv("raw_data/chabs-silva.taxonomy")
+```
+
+Splitting the taxonomy column into 7 columns
+```{r}
+tax_levels <- c("Kingdom", "Phylum", "Class", "Order",
+                "Family", "Genus", "Species")
+
+erie_tax <- erie_tax %>%
+            separate(Taxonomy, tax_levels, sep = ";", extra = "drop") %>%
+            mutate(across(all_of(tax_levels), ~str_remove(.x, "(\\(\\d{1,3}\\))$")))
+```
+
+Filter out all OTUs that are not present in both the shared and taxonomy files
+```{r}
+erie_tax <- erie_tax %>%
+            filter(OTU %>% is.element(erie_otus))
+```
+
+Filtering out taxonomy table for only bacteria in our analyses
+```{r}
+erie_tax <- erie_tax %>% filter(Kingdom == "Bacteria",
+                                Family != "mitochondria",
+                                Class != "Chloroplast")
+```
+
+Extract the list of OTUs from the taxonomy table
+```{r}
+erie_otus <- erie_tax %>% pluck("OTU")
+```
+
+```{r}
+erie <- erie %>%
+        select(!starts_with("Otu") | all_of(erie_otus))
+```
+
+A summary of the taxonomy data
+```{r}
+summary(erie_tax)
+```
+
+## Writing out the cleaned erie data
+
+```{r}
+erie %>% saveRDS("clean_data/erie.rds")
+erie_tax %>% saveRDS("clean_data/erie_tax.rds")
+erie_meta %>% saveRDS("clean_data/erie_meta.rds")
