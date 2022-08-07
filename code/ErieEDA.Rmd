@@ -1,5 +1,5 @@
 # Erie: Exploratory Data Analysis
-
+This file serves as an initial exploration of the Erie dataset. First, we want to look at the sample counts by the number of OTU reads as a histogram. This will give us an idea of the distribution of OTU reads, which tell us how much bacteria was collected in a given sample. More statistical analyses will be conducted in separate documents.
 
 ## Initial setup and import
 ```{r setup, include=FALSE}
@@ -7,27 +7,30 @@ knitr::opts_chunk$set(echo = TRUE)
 knitr::opts_knit$set(root.dir=normalizePath(".."))
 ```
 
-Clearing the workspace
+Clear the workspace
 ```{r}
 rm(list = ls())
 gc()
 ```
 
-Loading in the required packages for analysis
+Load in the required packages for analysis
 ```{r}
 library(tidyverse)
 library(vroom)
 library(lubridate)
+library(ggpmisc)
 ```
 
-Importing the data
+Import the data
 ```{r}
 erie <- readRDS("clean_data/erie.rds")
 erie_tax <- readRDS("clean_data/erie_tax.rds")
 erie_meta <- readRDS("clean_data/erie_meta.rds")
+
+head(erie_meta)
 ```
 
-## Creating a histogram of OTU read counts per sample
+## Create a histogram of OTU read counts
 
 Aggregate the data by summing the read counts of each OTU column per row
 ```{r}
@@ -52,8 +55,81 @@ Save the histogram as a pdf
 ggsave('outputs/Erie_readCounts_Histogram.pdf')
 ```
 
-## Creating a table summarizing the min, mean, and max read counts
+Create a table summarizing the min, mean, and max read counts
 ```{r}
 erie_sums %>% summarize(min = min(reads), mean = mean(reads), max = max(reads))
 ```
 
+
+## Create scatter plots to search for correlations
+Scatter plot of Temperature vs. Total Dissolved Phosphorus
+```{r}
+ggplot(data = erie_meta, mapping = aes(x = Temp, y = TDP)) +
+  facet_grid(rows = vars(factor(Month,
+                                levels = c("June", "July", "August",
+                                           "September", "October")))) +
+  stat_poly_line(se = FALSE) +
+  stat_poly_eq(aes(label = paste(after_stat(eq.label),
+                                 after_stat(rr.label),
+                                 sep = "*\", \"*"))) +
+  geom_point() +
+  ggtitle("Temperature vs. Total Dissolved Phosphorus") +
+  xlab("Temperature") +
+  ylab("TDP") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+Scatter plot of Temperature vs. Turbidity
+```{r}
+ggplot(data = erie_meta, mapping = aes(x = Turbidity, y = Temp)) +
+  facet_grid(rows = vars(factor(Month,
+                                levels = c("June", "July", "August",
+                                           "September", "October")))) +
+  stat_poly_line(se = FALSE) +
+  stat_poly_eq(aes(label = paste(after_stat(eq.label),
+                                 after_stat(rr.label),
+                                 sep = "*\", \"*"))) +
+  geom_point() +
+  ggtitle("Temperature vs. Turbidity") +
+  xlab("Turbidity") +
+  ylab("Temperature") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+Scatter plot of Temperature vs. Nitrates
+```{r}
+ggplot(data = erie_meta, mapping = aes(x = Nitrate, y = Temp)) +
+  facet_grid(rows = vars(factor(Month,
+                                levels = c("June", "July", "August",
+                                           "September", "October")))) +
+  stat_poly_line(se = FALSE) +
+  stat_poly_eq(aes(label = paste(after_stat(eq.label),
+                                 after_stat(rr.label),
+                                 sep = "*\", \"*"))) +
+  geom_point() +
+  ggtitle("Temperature vs. Nitrates") +
+  xlab("Nitrates") +
+  ylab("Temperature") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+Scatter plot of Nitrates vs. Total Dissolved Phosphorus
+```{r}
+ggplot(data = erie_meta, mapping = aes(x = TDP, y = Nitrate)) +
+  facet_grid(rows = vars(factor(Month,
+                                levels = c("June", "July", "August",
+                                           "September", "October")))) +
+  stat_poly_line(se = FALSE) +
+  stat_poly_eq(aes(label = paste(after_stat(eq.label),
+                                 after_stat(rr.label),
+                                 sep = "*\", \"*"))) +
+  geom_point() +
+  ggtitle("Nitrates vs. Total Dissolved Phosphorus") +
+  xlab("TDP") +
+  ylab("Nitrates") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5))
+```

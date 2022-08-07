@@ -1,4 +1,11 @@
 # Erie: Cleaning the Data for Analysis
+In order to conduct an accurate and effective analysis on the Lake Erie microbial data set, we need to ensure that the data is cleaned. 
+
+In the meta file, we only need to set the column data types and convert the Date_year column to the date data type.
+
+In the shared file, we set the column data types, drop all columns with NA, filter out all samples not present in both the shared and meta files, and drop all OTU columns with 0 reads for the remaining samples.
+
+Finally, in the taxonomy file, we split the taxonomy column into seven distinct columns for each taxonomy level, filter out all OTUs not present in both the shared and taxonomy files, and filter to keep only bacteria taxonomies.
 
 ## Initial setup
 
@@ -56,8 +63,7 @@ Load in the shared file column headers and count the number of OTUs
 shared.path <- "raw_data/chabs.shared"
 v1 <- vroom_lines(shared.path, n_max = 1)
 
-countOtuStr <- str_count(v1, pattern = "Otu")
-countOtuStr
+(countOtuStr <- str_count(v1, pattern = "Otu"))
 ```
 
 Defining the column types for the tibble
@@ -83,7 +89,7 @@ erie <- erie %>%
         filter(SampleID %>% is.element(erie_samples))
 ```
 
-
+Remove all OTU columns where there are 0 reads in the remaining samples
 ```{r}
 erie <- erie %>%
         select(-(where(~is.numeric(.x) && sum(.x, na.rm = TRUE) <= 0) & starts_with("Otu")))
@@ -122,7 +128,7 @@ erie_tax <- erie_tax %>%
             filter(OTU %>% is.element(erie_otus))
 ```
 
-Filtering out taxonomy table for only bacteria in our analyses
+Filter out taxonomy table for only bacteria in our analyses
 ```{r}
 erie_tax <- erie_tax %>% filter(Kingdom == "Bacteria",
                                 Family != "mitochondria",
@@ -134,6 +140,7 @@ Extract the list of OTUs from the taxonomy table
 erie_otus <- erie_tax %>% pluck("OTU")
 ```
 
+Select the non-OTU columns and all OTUs that are present in the taxonomy table for the erie shared data
 ```{r}
 erie <- erie %>%
         select(!starts_with("Otu") | all_of(erie_otus))
@@ -144,8 +151,7 @@ A summary of the taxonomy data
 summary(erie_tax)
 ```
 
-## Writing out the cleaned erie data
-
+## Write out the cleaned Erie data
 ```{r}
 erie %>% saveRDS("clean_data/erie.rds")
 erie_tax %>% saveRDS("clean_data/erie_tax.rds")

@@ -1,4 +1,5 @@
 # Erie: Relative Abundance Analysis
+A relative abundance bar chart helps visualize how the bacterial community abundance levels change over time and season. In our data set, there are three sampling sites: nearshore1, nearshore2, and offshore. Each of the different sites give a partial picture of the overall bacterial makeup of Lake Erie.
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -18,7 +19,7 @@ erie_meta <- readRDS("clean_data/erie_meta.rds")
 erie_tax <- readRDS("clean_data/erie_tax.rds")
 ```
 
-## Filtering out samples with small read numbers
+## Filter out samples with small read numbers
 ```{r}
 erie_meta <- erie_meta %>%
              filter(sequencingDepth >= 10000)
@@ -30,30 +31,28 @@ erie <- erie %>%
         filter(SampleID %>% is.element(erie_samples))
 ```
 
-## Lengthening the data with a pivot
+## Lengthen the data with a pivot
 ```{r}
 erie <- erie %>%
         select(-c(label, numOtus)) %>%
         pivot_longer(cols = starts_with("Otu"),
                      names_to = "OTU",
                      values_to = "Abundance")
-erie
 ```
 
-## Simplifying the taxonomy table
+## Simplify the taxonomy table
 ```{r}
 erie_tax_phylum <- erie_tax %>%
             select(OTU, Phylum)
 ```
 
-## Joining the erie and erie_tax tables so the OTUs are labeled (Phylum)
+## Join the erie and erie_tax tables so the OTUs are labeled (Phylum)
 ```{r}
 erie <- erie %>%
         left_join(erie_tax_phylum)
-erie
 ```
 
-## Aggregating the data by SampleID and Phylum
+## Aggregate the data by SampleID and Phylum
 
 Group the data by SampleID and Phylum
 ```{r}
@@ -68,16 +67,15 @@ Aggregate Abundance as a sum
 ```{r}
 erie_phylum <- erie_phylum %>%
                summarize(Abundance = sum(Abundance))
-erie_phylum
 ```
 
-## Computing relative abundances
+## Compute relative abundances
 ```{r}
 erie_phylum <- erie_phylum %>%
                mutate(Rel_Abundance = Abundance / sum(Abundance, na.rm = TRUE))
 ```
 
-## Filtering out uncommon phila
+## Filter out uncommon phila
 How many phyla do we currently have?
 ```{r}
 erie_phylum %>% ungroup() %>% count(Phylum)
@@ -96,18 +94,16 @@ erie_phylum %>% ungroup() %>% count(Phylum)
 
 Saving the filtered dataset
 ```{r}
-erie_phylum %>%
-ungroup() %>%
-saveRDS("clean_data/erie_phylum.rds")
+erie_phylum %>% ungroup() %>% saveRDS("clean_data/erie_phylum.rds")
 ```
 
-## Joining sample data with the meta data
+## Join sample data with the meta data
 ```{r}
 erie_joined <- erie_phylum %>%
                left_join(erie_meta)
 ```
 
-## Creating the stacked bar plots
+## Create the stacked bar plots
 
 Defining the set of colors to be used for the stacked bar plot
 ```{r}
@@ -118,7 +114,7 @@ phylum_colors <- c(
 )
 ```
 
-We are making two plots. The first plot treats the date as a date format, which will highlight the length of time between sample collections. The second plot will treat the dates as characters, removing the irregular spacing to focus on differences between samples
+We will make two plots. The first plot treats the date as a date format, which will highlight the length of time between sample collections. The second plot will treat the dates as characters, removing the irregular spacing to focus on differences between samples
 ```{r}
 ggplot(erie_joined, aes(x = Date, y = Rel_Abundance, fill = Phylum)) + 
   facet_grid(Station~.) +
@@ -150,8 +146,12 @@ ggplot(erie_joined, aes(x = format(Date, "%m/%d"), y = Rel_Abundance, fill = Phy
   ggtitle("Phylum Composition of Lake Erie \n Bacterial Communities by Sampling Site") 
 ```
 
-## Saving the plots
+## Save the plots
 Saving the resulting plots as a pdf
 ```{r}
 ggsave('outputs/Erie_Phylum_relativeAbundance_stackedBar.pdf')
 ```
+
+## Brief Analysis of the relative abundance plot
+### Findings
+Comparing across stations, Chlorobi is  more present in late August and early September for the nearshore stations. There are higher levels of Armatimonadetes, Cyanobacteria, and Planctomycetes present in the nearshore stations. Proteobacteria is more common at the offshore station. Finally, Actinobacteria and Bacteroidetes show no significant abundances between stations. Across months, Proteobacteria abundances are the highest in October, and Bacteroides reach their highest offshore concentrations around late August.
